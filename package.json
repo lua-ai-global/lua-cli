@@ -1,0 +1,60 @@
+{
+  "name": "lua-cli",
+  "version": "1.1.1",
+  "description": "Command-line interface for Lua AI platform - manage agents, organizations, and skills",
+  "readmeFilename": "README.md",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "lua",
+    "ai",
+    "cli",
+    "command-line",
+    "automation",
+    "agents",
+    "api",
+    "typescript"
+  ],
+  "author": "Stefan Kruger <stefan@heylua.ai>",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lua-ai-global/lua-cli.git"
+  },
+  "homepage": "https://github.com/lua-ai-global/lua-cli#readme",
+  "readme": "README.md",
+  "bugs": {
+    "url": "https://github.com/lua-ai-global/lua-cli/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "template/**/*",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "commander": "^14.0.1",
+    "inquirer": "^12.9.6",
+    "keytar": "^7.9.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^24.5.1",
+    "@types/node-fetch": "^2.6.13",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  },
+  "bin": {
+    "lua": "dist/index.js"
+  }
+}

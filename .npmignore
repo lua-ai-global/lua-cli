@@ -1,0 +1,48 @@
+# Source files
+src/
+tsconfig.json
+
+# Development files
+.gitignore
+.npmignore
+
+# Build artifacts (keep dist/ for published package)
+# dist/ is included in package.json files array
+
+# Development dependencies
+node_modules/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test files
+test/
+tests/
+__tests__/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Documentation (keep README.md)
+docs/
+
+# CI/CD
+.github/
+.travis.yml
+.circleci/
+.jenkins/
+
+# Environment files
+.env*

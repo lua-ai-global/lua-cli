@@ -2,8 +2,8 @@
 src/
 tsconfig.json
 
-# Template directory (not needed in published package)
-template/
+# Template .lua directory (build artifacts)
+template/.lua/
 
 # Development files
 .gitignore

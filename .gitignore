@@ -94,3 +94,8 @@ jspm_packages/
 template/.lua/
 **/.lua/
 *.lua.skill.toml
+lua.skill.toml
+
+# Temporary test files
+test-*.js
+test-*.ts

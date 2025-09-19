@@ -78,4 +78,5 @@ export async function initCommand(): Promise<void> {
   console.log("✅ Copied template files");
 
   console.log("🎉 Lua skill project initialized successfully!");
+  console.log("📦 Run `npm install` to install dependencies");
 }

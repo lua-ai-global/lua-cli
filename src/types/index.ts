@@ -59,3 +59,22 @@ export interface ApiKeyResponse {
   apiKey: string;
   apiId: string;
 }
+
+// Lua Tool System Types
+import { ZodType } from "zod";
+
+export interface LuaTool<TInput extends ZodType = ZodType, TOutput extends ZodType = ZodType> {
+    name: string;
+    description: string;
+    inputSchema: TInput;
+    outputSchema: TOutput;
+    execute: (input: any) => Promise<any>;
+}
+
+export declare class LuaSkill {
+    private readonly apiKey;
+    private readonly tools;
+    constructor(apiKey: string);
+    addTool<TInput extends ZodType, TOutput extends ZodType>(tool: LuaTool<TInput, TOutput>): void;
+    run(input: Record<string, any>): Promise<any>;
+}

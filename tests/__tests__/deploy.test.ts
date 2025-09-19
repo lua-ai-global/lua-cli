@@ -1,235 +1,311 @@
-import { deployCommand } from '../../src/commands/deploy';
 import fs from 'fs';
 import path from 'path';
+import { deployCommand } from '../../src/commands/deploy.js';
 
 // Mock fs module
 jest.mock('fs');
 const mockedFs = fs as jest.Mocked<typeof fs>;
 
-describe('deployCommand', () => {
-  const mockPackageJson = {
-    version: '1.0.0',
-    name: 'test-skill',
-  };
+// Mock esbuild
+jest.mock('esbuild', () => ({
+  build: jest.fn()
+}));
 
-  const mockIndexTs = `
-import z from "zod";
-import { LuaSkill } from "lua-cli/types";
-
-class WeatherService {
-  constructor() {
-  }
-
-  async getWeather(city: string) {
-    return { weather: "sunny", city: city };
-  }
-}
-
-const weatherService = new WeatherService();
-
-const skill = new LuaSkill("123");
-const inputSchema = z.object({
-  city: z.string(),
-});
-const outputSchema = z.object({
-  weather: z.string(),
-});
-
-skill.addTool({
-  name: "get_weather",
-  description: "Get the weather for a given city",
-  inputSchema,
-  outputSchema,
-  execute: async (input: z.infer<typeof inputSchema>) => {
-    return weatherService.getWeather(input.city);
-  },
-});
-`;
-
+describe('Deploy Command', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Mock console.log to capture output
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
-    
-    // Mock fs methods
-    mockedFs.existsSync.mockImplementation((filePath: any) => {
-      return filePath === 'index.ts' || filePath === 'package.json';
-    });
-    
-    mockedFs.readFileSync.mockImplementation((filePath: any) => {
-      if (filePath === 'package.json') {
-        return JSON.stringify(mockPackageJson);
-      }
-      if (filePath === 'index.ts') {
-        return mockIndexTs;
-      }
-      return '';
-    });
+    // Mock process.cwd
+    jest.spyOn(process, 'cwd').mockReturnValue('/test-project');
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  it('should generate deployable format successfully', async () => {
-    // Don't mock console.log for this test to see actual output
-    jest.restoreAllMocks();
-    
-    try {
-      await deployCommand();
-    } catch (error) {
-      console.error('Deploy command failed:', error);
-      throw error;
-    }
+  test('should successfully deploy with inline tool definitions', async () => {
+    const mockPackageJson = {
+      version: '1.0.0',
+      name: 'test-skill'
+    };
 
-    // Just check that it doesn't throw an error
-    expect(true).toBe(true);
-  });
+    const mockIndexContent = `
+import { LuaSkill } from "lua-cli/skill";
+import { z } from "zod";
 
-  it('should extract input schema correctly', async () => {
-    await deployCommand();
+const skill = new LuaSkill();
 
-    const output = (console.log as jest.Mock).mock.calls
-      .map(call => call[0])
-      .join('\n');
-    
-    // Extract JSON from console output (skip emoji and other text)
-    const jsonStart = output.indexOf('{');
-    const jsonEnd = output.lastIndexOf('}') + 1;
-    const jsonString = output.substring(jsonStart, jsonEnd);
-    const deployOutput = JSON.parse(jsonString);
-    const tool = deployOutput.tools[0];
-    
-    expect(tool.inputSchema).toEqual({
-      type: 'object',
-      properties: {
-        city: {
-          type: 'string',
-        },
-      },
-      required: ['city'],
-    });
-  });
-
-  it('should extract output schema correctly', async () => {
-    await deployCommand();
-
-    const output = (console.log as jest.Mock).mock.calls
-      .map(call => call[0])
-      .join('\n');
-    
-    // Extract JSON from console output (skip emoji and other text)
-    const jsonStart = output.indexOf('{');
-    const jsonEnd = output.lastIndexOf('}') + 1;
-    const jsonString = output.substring(jsonStart, jsonEnd);
-    const deployOutput = JSON.parse(jsonString);
-    const tool = deployOutput.tools[0];
-    
-    expect(tool.outputSchema).toEqual({
-      type: 'object',
-      properties: {
-        weather: {
-          type: 'string',
-        },
-      },
-      required: ['weather'],
-    });
-  });
-
-  it('should create self-contained execute function', async () => {
-    await deployCommand();
-
-    const output = (console.log as jest.Mock).mock.calls
-      .map(call => call[0])
-      .join('\n');
-    
-    // Extract JSON from console output (skip emoji and other text)
-    const jsonStart = output.indexOf('{');
-    const jsonEnd = output.lastIndexOf('}') + 1;
-    const jsonString = output.substring(jsonStart, jsonEnd);
-    const deployOutput = JSON.parse(jsonString);
-    const tool = deployOutput.tools[0];
-    
-    expect(tool.execute).toContain('const weatherService = new WeatherService()');
-    expect(tool.execute).toContain('return weatherService.getWeather(input.city)');
-  });
-
-  it('should throw error when index.ts is missing', async () => {
-    mockedFs.existsSync.mockImplementation((filePath: any) => {
-      return filePath === 'package.json';
-    });
-
-    await deployCommand();
-
-    expect(console.error).toHaveBeenCalledWith(
-      '❌ No index.ts found. Make sure you\'re in a Lua skill directory.'
-    );
-    expect(process.exit).toHaveBeenCalledWith(1);
-  });
-
-  it('should throw error when package.json is missing', async () => {
-    mockedFs.existsSync.mockImplementation((filePath: any) => {
-      return filePath === 'index.ts';
-    });
-
-    await deployCommand();
-
-    expect(console.error).toHaveBeenCalledWith(
-      '❌ No package.json found. Make sure you\'re in a Lua skill directory.'
-    );
-    expect(process.exit).toHaveBeenCalledWith(1);
-  });
-
-  it('should handle tools without dependencies', async () => {
-    const simpleIndexTs = `
-import z from "zod";
-import { LuaSkill } from "lua-cli/types";
-
-const skill = new LuaSkill("123");
 const inputSchema = z.object({
-  message: z.string(),
+  city: z.string()
 });
+
 const outputSchema = z.object({
-  response: z.string(),
+  temperature: z.number(),
+  description: z.string()
 });
 
 skill.addTool({
-  name: "echo",
-  description: "Echo a message",
-  inputSchema,
-  outputSchema,
+  name: "get_weather",
+  description: "Get weather for a city",
+  inputSchema: inputSchema,
+  outputSchema: outputSchema,
   execute: async (input) => {
-    return { response: input.message };
-  },
+    return {
+      temperature: 20,
+      description: "Sunny"
+    };
+  }
 });
 `;
 
+    // Mock file system operations
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json') || filePath.includes('index.ts')) {
+        return true;
+      }
+      if (filePath.includes('.lua')) {
+        return false;
+      }
+      return false;
+    });
+
     mockedFs.readFileSync.mockImplementation((filePath: any) => {
-      if (filePath === 'package.json') {
+      if (filePath.includes('package.json')) {
         return JSON.stringify(mockPackageJson);
       }
-      if (filePath === 'index.ts') {
-        return simpleIndexTs;
+      if (filePath.includes('index.ts')) {
+        return mockIndexContent;
+      }
+      return '';
+    });
+
+    mockedFs.mkdirSync.mockImplementation(() => undefined);
+    mockedFs.writeFileSync.mockImplementation(() => undefined);
+
+    await deployCommand();
+
+    // Verify .lua directory was created
+    expect(mockedFs.mkdirSync).toHaveBeenCalledWith('/test-project/.lua', { recursive: true });
+
+    // Verify deploy.json was written
+    expect(mockedFs.writeFileSync).toHaveBeenCalledWith(
+      '/test-project/.lua/deploy.json',
+      expect.stringContaining('"version": "1.0.0"')
+    );
+
+    // Verify tool file was written
+    expect(mockedFs.writeFileSync).toHaveBeenCalledWith(
+      '/test-project/.lua/get_weather.js',
+      expect.any(String)
+    );
+  });
+
+  test('should handle class-based tool definitions', async () => {
+    const mockPackageJson = {
+      version: '1.0.0',
+      name: 'test-skill'
+    };
+
+    const mockIndexContent = `
+import { LuaSkill } from "lua-cli/skill";
+import GetWeatherTool from "./tools/GetWeatherTool";
+
+const skill = new LuaSkill();
+skill.addTool(new GetWeatherTool());
+`;
+
+    const mockToolContent = `
+import { LuaTool } from "lua-cli/skill";
+import { z } from "zod";
+import ApiService from "../services/ApiService";
+
+const inputSchema = z.object({
+  city: z.string()
+});
+
+const outputSchema = z.object({
+  temperature: z.number()
+});
+
+export default class GetWeatherTool implements LuaTool<typeof inputSchema, typeof outputSchema> {
+  name: string;
+  description: string;
+  inputSchema: typeof inputSchema;
+  outputSchema: typeof outputSchema;
+  
+  apiService: ApiService;
+
+  constructor() {
+    this.name = "get_weather";
+    this.description = "Get weather for a city";
+    this.inputSchema = inputSchema;
+    this.outputSchema = outputSchema;
+    this.apiService = new ApiService();
+  }
+
+  async execute(input: z.infer<typeof inputSchema>) {
+    return this.apiService.getWeather(input.city);
+  }
+}
+`;
+
+    // Mock file system operations
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json') || 
+          filePath.includes('index.ts') || 
+          filePath.includes('tools/GetWeatherTool.ts')) {
+        return true;
+      }
+      if (filePath.includes('.lua')) {
+        return false;
+      }
+      return false;
+    });
+
+    mockedFs.readFileSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json')) {
+        return JSON.stringify(mockPackageJson);
+      }
+      if (filePath.includes('index.ts')) {
+        return mockIndexContent;
+      }
+      if (filePath.includes('tools/GetWeatherTool.ts')) {
+        return mockToolContent;
+      }
+      return '';
+    });
+
+    mockedFs.mkdirSync.mockImplementation(() => undefined);
+    mockedFs.writeFileSync.mockImplementation(() => undefined);
+
+    await deployCommand();
+
+    // Verify deploy.json was written with tool information
+    expect(mockedFs.writeFileSync).toHaveBeenCalledWith(
+      '/test-project/.lua/deploy.json',
+      expect.stringContaining('"name": "get_weather"')
+    );
+  });
+
+  test('should handle missing package.json', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const processSpy = jest.spyOn(process, 'exit').mockImplementation();
+
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json')) {
+        return false;
+      }
+      return true;
+    });
+
+    await deployCommand();
+
+    expect(consoleSpy).toHaveBeenCalledWith('❌ Compilation failed:', 'package.json not found in current directory');
+    expect(processSpy).toHaveBeenCalledWith(1);
+
+    consoleSpy.mockRestore();
+    processSpy.mockRestore();
+  });
+
+  test('should handle missing index.ts', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const processSpy = jest.spyOn(process, 'exit').mockImplementation();
+
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json')) {
+        return true;
+      }
+      if (filePath.includes('index.ts')) {
+        return false;
+      }
+      return true;
+    });
+
+    mockedFs.readFileSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json')) {
+        return JSON.stringify({ version: '1.0.0', name: 'test-skill' });
       }
       return '';
     });
 
     await deployCommand();
 
-    const output = (console.log as jest.Mock).mock.calls
-      .map(call => call[0])
-      .join('\n');
+    expect(consoleSpy).toHaveBeenCalledWith('❌ Compilation failed:', 'index.ts not found in current directory');
+    expect(processSpy).toHaveBeenCalledWith(1);
+
+    consoleSpy.mockRestore();
+    processSpy.mockRestore();
+  });
+
+  test('should handle external dependencies bundling', async () => {
+    const mockPackageJson = {
+      version: '1.0.0',
+      name: 'test-skill'
+    };
+
+    const mockIndexContent = `
+import { LuaSkill } from "lua-cli/skill";
+import { z } from "zod";
+import axios from "axios";
+
+const skill = new LuaSkill();
+
+const inputSchema = z.object({
+  url: z.string()
+});
+
+const outputSchema = z.object({
+  data: z.any()
+});
+
+skill.addTool({
+  name: "fetch_data",
+  description: "Fetch data from URL",
+  inputSchema: inputSchema,
+  outputSchema: outputSchema,
+  execute: async (input) => {
+    const response = await axios.get(input.url);
+    return { data: response.data };
+  }
+});
+`;
+
+    // Mock esbuild
+    const { build } = await import('esbuild');
+    const mockedBuild = build as jest.MockedFunction<typeof build>;
     
-    // Extract JSON from console output (skip emoji and other text)
-    const jsonStart = output.indexOf('{');
-    const jsonEnd = output.lastIndexOf('}') + 1;
-    const jsonString = output.substring(jsonStart, jsonEnd);
-    const deployOutput = JSON.parse(jsonString);
-    const tool = deployOutput.tools[0];
-    
-    expect(tool.execute).toContain('return { response: input.message }');
-    expect(tool.execute).not.toContain('class ');
+    mockedBuild.mockResolvedValue({
+      errors: [],
+      warnings: []
+    } as any);
+
+    // Mock file system operations
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json') || filePath.includes('index.ts')) {
+        return true;
+      }
+      if (filePath.includes('.lua')) {
+        return false;
+      }
+      return false;
+    });
+
+    mockedFs.readFileSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json')) {
+        return JSON.stringify(mockPackageJson);
+      }
+      if (filePath.includes('index.ts')) {
+        return mockIndexContent;
+      }
+      return '';
+    });
+
+    mockedFs.mkdirSync.mockImplementation(() => undefined);
+    mockedFs.writeFileSync.mockImplementation(() => undefined);
+
+    await deployCommand();
+
+    // Verify esbuild was called for bundling axios
+    expect(mockedBuild).toHaveBeenCalled();
   });
 });

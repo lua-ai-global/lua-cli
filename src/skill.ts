@@ -5,7 +5,7 @@ export { LuaTool };
 
 export class LuaSkill {
     private readonly tools: LuaTool<any, any>[] = [];
-    constructor(private readonly apiKey: string) {
+    constructor() {
     }
 
     addTool<TInput extends ZodType, TOutput extends ZodType>(tool: LuaTool<TInput, TOutput>): void {

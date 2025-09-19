@@ -1,5 +1,18 @@
 import fs from "fs";
 import path from "path";
+import { gzipSync, gunzipSync } from "zlib";
+import { Buffer } from "buffer";
+
+// Compression utilities
+function compressCode(code: string): string {
+  const compressed = gzipSync(code);
+  return compressed.toString('base64');
+}
+
+function decompressCode(compressedCode: string): string {
+  const buffer = Buffer.from(compressedCode, 'base64');
+  return gunzipSync(buffer).toString('utf8');
+}
 
 export async function deployCommand() {
   try {
@@ -26,11 +39,14 @@ export async function deployCommand() {
     // Extract skill information
     const skillInfo = await extractSkillInfo(indexContent);
     
-    // Create deployment data
+    // Create deployment data with compressed execute code
     const deployData = {
       version,
       skillsName,
-      tools: skillInfo
+      tools: skillInfo.map(tool => ({
+        ...tool,
+        execute: compressCode(tool.execute)
+      }))
     };
     
     // Create .lua directory
@@ -389,8 +405,8 @@ async function bundlePackageCode(packagePath: string, namedImports?: string, def
       fs.mkdirSync(luaDir, { recursive: true });
     }
     
-    const entryFile = path.join(luaDir, `${packagePath}-entry.js`);
-    const outputFile = path.join(luaDir, `${packagePath}-bundle.js`);
+    const entryFile = path.join(luaDir, `${packagePath}-entry.cjs`);
+    const outputFile = path.join(luaDir, `${packagePath}-bundle.cjs`);
     
     // Create entry file based on import type
     let entryContent = '';
@@ -725,9 +741,12 @@ async function createClassBasedExecute(executeBody: string, toolContent: string,
       continue;
     }
     
-    // Handle axios
+    // Handle axios - bundle it properly
     if (packagePath === 'axios') {
-      bundledPackages.add(`const axios = require('axios');`);
+      const packageCode = await bundlePackageCode(packagePath, namedImports, defaultImport);
+      if (packageCode) {
+        bundledPackages.add(packageCode);
+      }
       continue;
     }
     
@@ -735,13 +754,63 @@ async function createClassBasedExecute(executeBody: string, toolContent: string,
     if (packagePath.startsWith('./') || packagePath.startsWith('../')) {
       // The tool files are in tools/ subdirectory, so we need to resolve from there
       const toolDir = path.join(process.cwd(), 'tools');
-      const serviceFilePath = path.resolve(toolDir, packagePath + '.ts');
+      // Resolve the service file path correctly
+      // If the import is ../services/ApiService, resolve it relative to the tools directory
+      const serviceFilePath = path.resolve(process.cwd(), 'tools', packagePath + '.ts');
+      
       if (fs.existsSync(serviceFilePath)) {
         const serviceContent = fs.readFileSync(serviceFilePath, 'utf8');
         
-        // Check for axios import in service file
-        if (serviceContent.includes("import axios from \"axios\"")) {
-          bundledPackages.add(`const axios = require('axios');`);
+        // Process all imports in the service file
+        const serviceImportRegex = /import\s+(?:(?:\{([^}]+)\})|(\w+))\s+from\s+["']([^"']+)["']/g;
+        let serviceImportMatch;
+        
+        while ((serviceImportMatch = serviceImportRegex.exec(serviceContent)) !== null) {
+          const namedImports = serviceImportMatch[1];
+          const defaultImport = serviceImportMatch[2];
+          const packagePath = serviceImportMatch[3];
+          
+          // Skip lua-cli imports
+          if (packagePath.startsWith('lua-cli')) {
+            continue;
+          }
+          
+          // Handle zod
+          if (packagePath === 'zod') {
+            if (namedImports) {
+              const importsList = namedImports.split(',').map(imp => imp.trim());
+              const usedImports = importsList.filter(imp => 
+                serviceContent.includes(`${imp}.`)
+              );
+              
+              if (usedImports.length > 0) {
+                const requireStatement = usedImports.length === 1 
+                  ? `const { ${usedImports[0]} } = require('zod');`
+                  : `const { ${usedImports.join(', ')} } = require('zod');`;
+                bundledPackages.add(requireStatement);
+              }
+            } else if (defaultImport) {
+              bundledPackages.add(`const ${defaultImport} = require('zod');`);
+            }
+            continue;
+          }
+          
+          // Handle axios - bundle it properly
+          if (packagePath === 'axios') {
+            const packageCode = await bundlePackageCode(packagePath, namedImports, defaultImport);
+            if (packageCode) {
+              bundledPackages.add(packageCode);
+            }
+            continue;
+          }
+          
+          // Bundle other external packages
+          if (namedImports || defaultImport) {
+            const packageCode = await bundlePackageCode(packagePath, namedImports, defaultImport);
+            if (packageCode) {
+              bundledPackages.add(packageCode);
+            }
+          }
         }
         
         // Extract the service class with proper brace matching

@@ -2,6 +2,16 @@ import fs from "fs";
 import path from "path";
 import inquirer from "inquirer";
 import { deployCommand } from "./deploy.js";
+import { gunzipSync } from "zlib";
+import { Buffer } from "buffer";
+import { createRequire } from "module";
+import vm from "vm";
+
+// Decompression utility
+function decompressCode(compressedCode: string): string {
+  const buffer = Buffer.from(compressedCode, 'base64');
+  return gunzipSync(buffer).toString('utf8');
+}
 
 export async function testCommand() {
   try {
@@ -121,13 +131,59 @@ export async function testCommand() {
     console.log("\n🚀 Executing tool...");
     console.log(`Input: ${JSON.stringify(inputValues, null, 2)}`);
     
-    // Get the execute function string directly from the selected tool
-    const toolCode = selectedTool.execute;
+    // Get the execute function string directly from the selected tool and decompress it
+    const toolCode = decompressCode(selectedTool.execute);
     
     // Execute the tool
     try {
-      // Create a temporary CommonJS file to run the tool
-      const tempFile = path.join(luaDir, `temp-${selectedTool.name}.cjs`);
+      // Create a CommonJS context for execution
+      const require = createRequire(process.cwd() + '/package.json');
+      
+      // Create a sandbox context with require and other necessary globals
+      const sandbox = {
+        require,
+        console,
+        Buffer,
+        setTimeout,
+        setInterval,
+        clearTimeout,
+        clearInterval,
+        process,
+        global: globalThis,
+        __dirname: process.cwd(),
+        __filename: path.join(process.cwd(), 'index.ts'),
+        module: { exports: {} },
+        exports: {},
+        // Web APIs
+        fetch: globalThis.fetch,
+        URLSearchParams: globalThis.URLSearchParams,
+        URL: globalThis.URL,
+        Headers: globalThis.Headers,
+        Request: globalThis.Request,
+        Response: globalThis.Response,
+        // Additional Node.js globals that might be needed
+        Object,
+        Array,
+        String,
+        Number,
+        Boolean,
+        Date,
+        Math,
+        JSON,
+        Error,
+        TypeError,
+        ReferenceError,
+        SyntaxError,
+        // Node.js specific globals
+        globalThis,
+        // Additional globals that might be referenced
+        undefined: undefined,
+        null: null,
+        Infinity: Infinity,
+        NaN: NaN
+      };
+      
+      // Create the CommonJS wrapper code
       const commonJsWrapper = `
 const executeFunction = ${toolCode};
 
@@ -137,17 +193,14 @@ module.exports = async (input) => {
 };
 `;
       
-      fs.writeFileSync(tempFile, commonJsWrapper);
+      // Execute the code in the sandbox
+      const context = vm.createContext(sandbox);
+      vm.runInContext(commonJsWrapper, context);
       
-      // Import and execute the CommonJS module
-      const { createRequire } = await import('module');
-      const require = createRequire(import.meta.url);
-      const executeFunction = require(tempFile);
+      // Get the exported function
+      const executeFunction = context.module.exports;
       
       const result = await executeFunction(inputValues);
-      
-      // Clean up temp file
-      fs.unlinkSync(tempFile);
       
       console.log("\n✅ Tool execution successful!");
       console.log(`Output: ${JSON.stringify(result, null, 2)}`);

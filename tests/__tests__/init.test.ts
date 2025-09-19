@@ -1,153 +1,281 @@
-import { initCommand } from '../../src/commands/init';
-import { createSkillToml } from '../../src/utils/files';
-import { loadApiKey, checkApiKey } from '../../src/services/auth';
+import fs from 'fs';
+import path from 'path';
 import inquirer from 'inquirer';
+import { initCommand } from '../../src/commands/init.js';
+import { loadApiKey } from '../../src/services/auth.js';
+import { copyTemplateFiles, createSkillToml } from '../../src/utils/files.js';
+import fetch from 'node-fetch';
 
 // Mock dependencies
-jest.mock('../../src/services/auth');
-jest.mock('../../src/utils/files');
+jest.mock('fs');
 jest.mock('inquirer');
+jest.mock('../../src/services/auth.js');
+jest.mock('../../src/utils/files.js');
+jest.mock('node-fetch');
 
-const mockedLoadApiKey = loadApiKey as jest.MockedFunction<typeof loadApiKey>;
-const mockedCheckApiKey = checkApiKey as jest.MockedFunction<typeof checkApiKey>;
-const mockedCreateSkillToml = createSkillToml as jest.MockedFunction<typeof createSkillToml>;
+const mockedFs = fs as jest.Mocked<typeof fs>;
 const mockedInquirer = inquirer as jest.Mocked<typeof inquirer>;
+const mockedLoadApiKey = loadApiKey as jest.MockedFunction<typeof loadApiKey>;
+const mockedCopyTemplateFiles = copyTemplateFiles as jest.MockedFunction<typeof copyTemplateFiles>;
+const mockedCreateSkillToml = createSkillToml as jest.MockedFunction<typeof createSkillToml>;
+const mockedFetch = fetch as jest.MockedFunction<typeof fetch>;
 
-describe('initCommand', () => {
-  const mockUserData = {
-    admin: {
-      orgs: [
-        {
-          id: 'org-1',
-          registeredName: 'Test Organization',
-          agents: [
-            {
-              agentId: 'agent-1',
-              name: 'Test Agent',
-            },
-          ],
-        },
-      ],
-    },
-  };
-
+describe('Init Command', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Mock console methods
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
-    
-    // Mock API key functions
-    mockedLoadApiKey.mockResolvedValue('test-api-key');
-    mockedCheckApiKey.mockResolvedValue(mockUserData as any);
-    
-    // Mock inquirer prompts
-    mockedInquirer.prompt
-      .mockResolvedValueOnce({ selectedOrg: mockUserData.admin.orgs[0] })
-      .mockResolvedValueOnce({ selectedAgent: mockUserData.admin.orgs[0].agents[0] })
-      .mockResolvedValueOnce({ 
-        skillName: 'My Test Skill',
-        skillDescription: 'A test skill description'
-      });
+    // Mock process.cwd
+    jest.spyOn(process, 'cwd').mockReturnValue('/test-project');
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  it('should initialize a skill project successfully', async () => {
-    await initCommand();
-
-    expect(mockedLoadApiKey).toHaveBeenCalled();
-    expect(mockedCheckApiKey).toHaveBeenCalledWith('test-api-key');
-    expect(mockedInquirer.prompt).toHaveBeenCalledTimes(3);
-    expect(mockedCreateSkillToml).toHaveBeenCalledWith(
-      'agent-1',
-      'org-1',
-      'My Test Skill',
-      'A test skill description'
-    );
-    expect(console.log).toHaveBeenCalledWith('✅ Created lua.skill.toml');
-    expect(console.log).toHaveBeenCalledWith('🎉 Lua skill project initialized successfully!');
-    expect(console.log).toHaveBeenCalledWith('📦 Run `npm install` to install dependencies');
-  });
-
-  it('should exit with error when no API key is found', async () => {
-    mockedLoadApiKey.mockResolvedValue(null);
-
-    await initCommand();
-
-    expect(console.error).toHaveBeenCalledWith('❌ No API key found. Run `lua configure` first.');
-    expect(process.exit).toHaveBeenCalledWith(1);
-  });
-
-  it('should handle organization selection', async () => {
-    await initCommand();
-
-    // Check that organization prompt was called with correct choices
-    const orgPrompt = mockedInquirer.prompt.mock.calls[0][0];
-    expect(orgPrompt).toEqual({
-      type: 'list',
-      name: 'selectedOrg',
-      message: 'Select an organization:',
-      choices: [
+  test('should successfully initialize a new skill project', async () => {
+    const mockUserData = {
+      organizations: [
         {
+          id: 'org-123',
           name: 'Test Organization',
-          value: mockUserData.admin.orgs[0],
-        },
-      ],
-    });
-  });
+          agents: [
+            { id: 'agent-456', name: 'Test Agent' }
+          ]
+        }
+      ]
+    };
 
-  it('should handle agent selection', async () => {
-    await initCommand();
+    // Mock API key loading
+    mockedLoadApiKey.mockResolvedValue('test-api-key');
 
-    // Check that agent prompt was called with correct choices
-    const agentPrompt = mockedInquirer.prompt.mock.calls[1][0];
-    expect(agentPrompt).toEqual({
-      type: 'list',
-      name: 'selectedAgent',
-      message: 'Select an agent:',
-      choices: [
-        {
-          name: 'Test Agent',
-          value: mockUserData.admin.orgs[0].agents[0],
-        },
-      ],
-    });
-  });
+    // Mock fetch for organizations
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(mockUserData)
+    } as any);
 
-  it('should handle skill details input', async () => {
-    await initCommand();
-
-    // Check that skill details prompt was called
-    const skillPrompt = mockedInquirer.prompt.mock.calls[2][0];
-    expect(skillPrompt).toEqual({
-      type: 'input',
-      name: 'skillName',
-      message: 'Enter a name for your skill:',
-      default: 'My Lua Skill',
-    });
-  });
-
-  it('should use default values for skill details', async () => {
-    // Mock with default values
+    // Mock inquirer prompts
     mockedInquirer.prompt
-      .mockResolvedValueOnce({ selectedOrg: mockUserData.admin.orgs[0] })
-      .mockResolvedValueOnce({ selectedAgent: mockUserData.admin.orgs[0].agents[0] })
-      .mockResolvedValueOnce({ 
-        skillName: 'My Lua Skill', // Default value
-        skillDescription: 'A Lua skill for automation' // Default value
+      .mockResolvedValueOnce({
+        selectedOrg: mockUserData.organizations[0]
+      })
+      .mockResolvedValueOnce({
+        selectedAgent: mockUserData.organizations[0].agents[0]
+      })
+      .mockResolvedValueOnce({
+        skillName: 'test-skill',
+        skillDescription: 'A test skill'
       });
 
     await initCommand();
 
+    // Verify API key was loaded
+    expect(mockedLoadApiKey).toHaveBeenCalled();
+
+    // Verify organizations were fetched
+    expect(mockedFetch).toHaveBeenCalledWith('https://api.heylua.ai/admin', {
+      headers: { Authorization: 'Bearer test-api-key' }
+    });
+
+    // Verify inquirer prompts were called
+    expect(mockedInquirer.prompt).toHaveBeenCalledTimes(3);
+
+    // Verify skill TOML was created
     expect(mockedCreateSkillToml).toHaveBeenCalledWith(
-      'agent-1',
-      'org-1',
-      'My Lua Skill',
-      'A Lua skill for automation'
+      'agent-456',
+      'org-123',
+      'test-skill',
+      'A test skill'
     );
+
+    // Verify template files were copied
+    expect(mockedCopyTemplateFiles).toHaveBeenCalled();
+  });
+
+  test('should handle missing API key', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const processSpy = jest.spyOn(process, 'exit').mockImplementation();
+
+    mockedLoadApiKey.mockResolvedValue(null);
+
+    await initCommand();
+
+    expect(consoleSpy).toHaveBeenCalledWith('❌ No API key found. Run \'lua configure\' first.');
+    expect(processSpy).toHaveBeenCalledWith(1);
+
+    consoleSpy.mockRestore();
+    processSpy.mockRestore();
+  });
+
+  test('should handle API key validation failure', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const processSpy = jest.spyOn(process, 'exit').mockImplementation();
+
+    mockedLoadApiKey.mockResolvedValue('invalid-api-key');
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 401
+    } as any);
+
+    await initCommand();
+
+    expect(consoleSpy).toHaveBeenCalledWith('❌ Invalid API key');
+    expect(processSpy).toHaveBeenCalledWith(1);
+
+    consoleSpy.mockRestore();
+    processSpy.mockRestore();
+  });
+
+  test('should handle no organizations', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const processSpy = jest.spyOn(process, 'exit').mockImplementation();
+
+    const mockUserData = { organizations: [] };
+
+    mockedLoadApiKey.mockResolvedValue('test-api-key');
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(mockUserData)
+    } as any);
+
+    await initCommand();
+
+    expect(consoleSpy).toHaveBeenCalledWith('❌ No organizations found.');
+    expect(processSpy).toHaveBeenCalledWith(1);
+
+    consoleSpy.mockRestore();
+    processSpy.mockRestore();
+  });
+
+  test('should handle no agents in selected organization', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const processSpy = jest.spyOn(process, 'exit').mockImplementation();
+
+    const mockUserData = {
+      organizations: [
+        {
+          id: 'org-123',
+          name: 'Test Organization',
+          agents: []
+        }
+      ]
+    };
+
+    mockedLoadApiKey.mockResolvedValue('test-api-key');
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(mockUserData)
+    } as any);
+
+    mockedInquirer.prompt.mockResolvedValueOnce({
+      selectedOrg: mockUserData.organizations[0]
+    });
+
+    await initCommand();
+
+    expect(consoleSpy).toHaveBeenCalledWith('❌ No agents found in the selected organization.');
+    expect(processSpy).toHaveBeenCalledWith(1);
+
+    consoleSpy.mockRestore();
+    processSpy.mockRestore();
+  });
+
+  test('should handle existing lua.skill.toml file', async () => {
+    const mockUserData = {
+      organizations: [
+        {
+          id: 'org-123',
+          name: 'Test Organization',
+          agents: [
+            { id: 'agent-456', name: 'Test Agent' }
+          ]
+        }
+      ]
+    };
+
+    mockedLoadApiKey.mockResolvedValue('test-api-key');
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(mockUserData)
+    } as any);
+
+    // Mock existing lua.skill.toml file
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('lua.skill.toml')) {
+        return true;
+      }
+      return false;
+    });
+
+    mockedInquirer.prompt
+      .mockResolvedValueOnce({
+        selectedOrg: mockUserData.organizations[0]
+      })
+      .mockResolvedValueOnce({
+        selectedAgent: mockUserData.organizations[0].agents[0]
+      })
+      .mockResolvedValueOnce({
+        skillName: 'test-skill',
+        skillDescription: 'A test skill'
+      })
+      .mockResolvedValueOnce({
+        overwrite: true
+      });
+
+    await initCommand();
+
+    // Verify overwrite prompt was shown
+    expect(mockedInquirer.prompt).toHaveBeenCalledTimes(4);
+  });
+
+  test('should handle user cancellation during overwrite prompt', async () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+    const mockUserData = {
+      organizations: [
+        {
+          id: 'org-123',
+          name: 'Test Organization',
+          agents: [
+            { id: 'agent-456', name: 'Test Agent' }
+          ]
+        }
+      ]
+    };
+
+    mockedLoadApiKey.mockResolvedValue('test-api-key');
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue(mockUserData)
+    } as any);
+
+    // Mock existing lua.skill.toml file
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('lua.skill.toml')) {
+        return true;
+      }
+      return false;
+    });
+
+    mockedInquirer.prompt
+      .mockResolvedValueOnce({
+        selectedOrg: mockUserData.organizations[0]
+      })
+      .mockResolvedValueOnce({
+        selectedAgent: mockUserData.organizations[0].agents[0]
+      })
+      .mockResolvedValueOnce({
+        skillName: 'test-skill',
+        skillDescription: 'A test skill'
+      })
+      .mockResolvedValueOnce({
+        overwrite: false
+      });
+
+    await initCommand();
+
+    expect(consoleSpy).toHaveBeenCalledWith('❌ Initialization cancelled.');
+
+    consoleSpy.mockRestore();
   });
 });

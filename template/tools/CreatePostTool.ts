@@ -2,14 +2,26 @@ import { LuaTool } from "lua-cli/skill";
 import { z } from "zod";
 import ApiService from "../services/ApiService";
 
-const inputSchema = z.object({ title: z.string(), content: z.string() });
-const outputSchema = z.object({ id: z.string(), title: z.string(), status: z.string(), error: z.string().optional(), url: z.string().nullable() });
+// Define schemas as static properties for Lua CLI detection
+const inputSchema = z.object({ 
+    title: z.string(), 
+    content: z.string() 
+});
 
-export default class CreatePostTool implements LuaTool<typeof inputSchema, typeof outputSchema>{
+const outputSchema = z.object({ 
+    id: z.string().nullable(), 
+    title: z.string(), 
+    status: z.string(), 
+    error: z.string().optional(), 
+    url: z.string().nullable() 
+});
+
+export default class CreatePostTool implements LuaTool<typeof inputSchema, typeof outputSchema> {
     name: string;
     description: string;
     inputSchema: typeof inputSchema;
     outputSchema: typeof outputSchema;
+    
     apiService: ApiService;
     
     constructor() {

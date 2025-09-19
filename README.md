@@ -1,6 +1,6 @@
 # Lua CLI
 
-A command-line interface for the Lua AI platform that helps you manage agents, organizations, and skills with ease.
+A powerful command-line interface for the Lua AI platform that helps you develop, test, and deploy LuaSkills with custom tools.
 
 ## Installation
 
@@ -22,8 +22,12 @@ lua --help
 - 🏢 **Organization Management**: Select and manage multiple organizations
 - 🤖 **Agent Management**: Choose from available agents within your organizations
 - 🛠️ **Skill Development**: Initialize new Lua skills with proper configuration
+- 🔧 **Tool Development**: Create custom tools with TypeScript and Zod validation
+- 📦 **Dependency Bundling**: Automatic bundling of npm packages using esbuild
+- 🧪 **Interactive Testing**: Test your tools with real-time execution
+- 🚀 **Deployment**: Compile and deploy skills to the Lua platform
 - 🔑 **API Key Management**: Securely store, view, and manage your API keys
-- 📦 **Template System**: Quick project setup with pre-configured templates
+- 📚 **Comprehensive Documentation**: Complete guides and examples
 
 ## Quick Start
 
@@ -39,20 +43,29 @@ lua --help
    ```
    Select your organization and agent, then provide skill details.
 
-3. **View your API key:**
+3. **Develop your tools:**
    ```bash
-   lua apiKey
+   # Create tools in the tools/ directory
+   # See template/README.md for examples
    ```
 
-4. **List your agents:**
+4. **Compile your skill:**
    ```bash
-   lua agents
+   lua compile
    ```
+   Bundles dependencies and creates deployable files.
 
-5. **Delete your stored credentials:**
+5. **Test your tools:**
    ```bash
-   lua destroy
+   lua test
    ```
+   Interactive testing interface for your tools.
+
+6. **Deploy your skill:**
+   ```bash
+   lua deploy
+   ```
+   Deploy to the Lua platform.
 
 ## Commands
 
@@ -107,6 +120,109 @@ Delete your stored API key and credentials.
 lua destroy
 ```
 
+### `lua compile`
+
+Compile your LuaSkill and bundle all dependencies.
+
+```bash
+lua compile
+```
+
+This command will:
+- Scan your tools for imports and dependencies
+- Bundle external packages using esbuild
+- Compress the generated code for efficient storage
+- Create `.lua/deploy.json` with compiled skill data
+- Generate individual tool files in `.lua/` directory
+
+**Options:**
+- `--watch` - Watch for changes and recompile automatically
+- `--minify` - Minify the bundled code
+
+### `lua test`
+
+Interactive testing interface for your tools.
+
+```bash
+lua test
+```
+
+Features:
+- Tool selection menu
+- Input validation with Zod schemas
+- Real-time execution in isolated VM context
+- Error reporting and debugging
+- Mock data support
+
+### `lua deploy`
+
+Deploy your compiled skill to the Lua platform.
+
+```bash
+lua deploy
+```
+
+**Requirements:**
+- Valid API key (configured with `lua configure`)
+- Compiled skill (run `lua compile` first)
+- Active internet connection
+
+**Output:**
+- Skill deployed to your selected agent
+- Deployment confirmation and status
+
+## Template System
+
+The Lua CLI includes a comprehensive template system with examples and documentation:
+
+### Template Structure
+```
+template/
+├── README.md              # Complete user guide
+├── DEVELOPER.md           # Technical documentation  
+├── API.md                 # API reference
+├── QUICKSTART.md          # Quick start guide
+├── tools/                 # Example tools
+│   ├── GetWeatherTool.ts
+│   ├── GetUserDataTool.ts
+│   ├── CreatePostTool.ts
+│   ├── CalculatorTool.ts
+│   └── AdvancedMathTool.ts
+├── services/              # Example services
+│   ├── ApiService.ts
+│   ├── GetWeather.ts
+│   └── MathService.ts
+└── index.ts               # Main skill definition
+```
+
+### Getting Started with Templates
+
+1. **Copy the template:**
+   ```bash
+   cp -r template/ my-skill/
+   cd my-skill
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Read the documentation:**
+   ```bash
+   # Start with the quick start guide
+   cat QUICKSTART.md
+   
+   # Then read the full documentation
+   cat README.md
+   ```
+
+4. **Create your tools:**
+   ```bash
+   # Modify existing tools or create new ones
+   # See tools/ directory for examples
+   ```
+
 ## Configuration File
 
 The `lua.skill.toml` file is created when you run `lua init`:
@@ -146,10 +262,57 @@ description = "Description of your skill"
 - Confirmation prompts prevent accidental exposure of sensitive information
 - No credentials are stored in plain text
 
+## Development Workflow
+
+### 1. Project Setup
+```bash
+# Initialize a new skill project
+lua init
+
+# Or copy the template
+cp -r template/ my-skill/
+cd my-skill
+npm install
+```
+
+### 2. Tool Development
+```bash
+# Create tools in tools/ directory
+# Use TypeScript with Zod validation
+# See template/tools/ for examples
+```
+
+### 3. Testing
+```bash
+# Compile your skill
+lua compile
+
+# Test your tools interactively
+lua test
+```
+
+### 4. Deployment
+```bash
+# Deploy to Lua platform
+lua deploy
+```
+
+### 5. Iteration
+```bash
+# Make changes to your tools
+# Recompile and test
+lua compile && lua test
+
+# Deploy updates
+lua deploy
+```
+
 ## Requirements
 
 - Node.js 16.0.0 or higher
 - Valid Lua AI platform account
+- TypeScript knowledge (for tool development)
+- Basic understanding of Zod schemas
 
 ## Development
 
@@ -173,6 +336,18 @@ For support and questions:
 - Contact: stefan@heylua.ai
 
 ## Changelog
+
+### 1.2.0
+- **Tool Development Framework**: Complete LuaSkill and LuaTool framework
+- **Dependency Bundling**: Automatic bundling of npm packages using esbuild
+- **Interactive Testing**: Real-time tool testing with `lua test` command
+- **Code Compression**: Gzip compression for efficient storage
+- **In-Memory Execution**: VM-based execution without temporary files
+- **Comprehensive Documentation**: Complete guides, API reference, and examples
+- **Template System**: Rich template with 5 example tools and services
+- **TypeScript Support**: Full TypeScript integration with Zod validation
+- **Error Handling**: Robust error handling and validation
+- **Performance Optimization**: Optimized bundling and execution
 
 ### 1.1.0
 - **Major Refactoring**: Complete codebase reorganization into modular structure

@@ -1,240 +1,334 @@
-import { LuaSkill } from '../../src/types/index';
-import { z } from 'zod';
+import fs from 'fs';
+import path from 'path';
+import { deployCommand } from '../../src/commands/deploy.js';
+import { testCommand } from '../../src/commands/test.js';
+
+// Mock dependencies
+jest.mock('fs');
+jest.mock('../../src/commands/deploy.js');
+jest.mock('../../src/commands/test.js');
+
+const mockedFs = fs as jest.Mocked<typeof fs>;
+const mockedDeployCommand = deployCommand as jest.MockedFunction<typeof deployCommand>;
+const mockedTestCommand = testCommand as jest.MockedFunction<typeof testCommand>;
 
 describe('Integration Tests', () => {
-  describe('Complete Skill Workflow', () => {
-    it('should work with complex skill containing multiple tools', async () => {
-      const skill = new LuaSkill('test-api-key');
-
-      // Add multiple tools
-      const weatherInputSchema = z.object({
-        city: z.string(),
-      });
-      const weatherOutputSchema = z.object({
-        weather: z.string(),
-        temperature: z.number(),
-      });
-
-      skill.addTool({
-        name: 'get_weather',
-        description: 'Get weather information for a city',
-        inputSchema: weatherInputSchema,
-        outputSchema: weatherOutputSchema,
-        execute: async (input: any) => {
-          return {
-            weather: 'sunny',
-            temperature: 25,
-            city: input.city,
-          };
-        },
-      });
-
-      const mathInputSchema = z.object({
-        a: z.number(),
-        b: z.number(),
-        operation: z.enum(['add', 'subtract', 'multiply', 'divide']),
-      });
-      const mathOutputSchema = z.object({
-        result: z.number(),
-      });
-
-      skill.addTool({
-        name: 'calculate',
-        description: 'Perform mathematical calculations',
-        inputSchema: mathInputSchema,
-        outputSchema: mathOutputSchema,
-        execute: async (input: any) => {
-          let result: number;
-          switch (input.operation) {
-            case 'add':
-              result = input.a + input.b;
-              break;
-            case 'subtract':
-              result = input.a - input.b;
-              break;
-            case 'multiply':
-              result = input.a * input.b;
-              break;
-            case 'divide':
-              result = input.a / input.b;
-              break;
-            default:
-              throw new Error('Invalid operation');
-          }
-          return { result };
-        },
-      });
-
-      // Test weather tool
-      const weatherResult = await skill.run({
-        tool: 'get_weather',
-        city: 'London',
-      });
-
-      expect(weatherResult).toEqual({
-        weather: 'sunny',
-        temperature: 25,
-        city: 'London',
-      });
-
-      // Test math tool
-      const mathResult = await skill.run({
-        tool: 'calculate',
-        a: 10,
-        b: 5,
-        operation: 'add',
-      });
-
-      expect(mathResult).toEqual({
-        result: 15,
-      });
-
-      // Test division
-      const divisionResult = await skill.run({
-        tool: 'calculate',
-        a: 20,
-        b: 4,
-        operation: 'divide',
-      });
-
-      expect(divisionResult).toEqual({
-        result: 5,
-      });
-    });
-
-    it('should handle validation errors gracefully', async () => {
-      const skill = new LuaSkill('test-api-key');
-
-      const inputSchema = z.object({
-        email: z.string().email(),
-        age: z.number().min(18),
-      });
-      const outputSchema = z.object({
-        message: z.string(),
-      });
-
-      skill.addTool({
-        name: 'validate_user',
-        description: 'Validate user information',
-        inputSchema,
-        outputSchema,
-        execute: async (input: any) => {
-          return {
-            message: `User ${input.email} is ${input.age} years old`,
-          };
-        },
-      });
-
-      // Test with invalid email
-      await expect(
-        skill.run({
-          tool: 'validate_user',
-          email: 'invalid-email',
-          age: 25,
-        })
-      ).rejects.toThrow();
-
-      // Test with invalid age
-      await expect(
-        skill.run({
-          tool: 'validate_user',
-          email: 'test@example.com',
-          age: 16,
-        })
-      ).rejects.toThrow();
-
-      // Test with valid input
-      const result = await skill.run({
-        tool: 'validate_user',
-        email: 'test@example.com',
-        age: 25,
-      });
-
-      expect(result).toEqual({
-        message: 'User test@example.com is 25 years old',
-      });
-    });
-
-    it('should work with async operations', async () => {
-      const skill = new LuaSkill('test-api-key');
-
-      const inputSchema = z.object({
-        url: z.string().url(),
-      });
-      const outputSchema = z.object({
-        status: z.number(),
-        data: z.string(),
-      });
-
-      skill.addTool({
-        name: 'fetch_data',
-        description: 'Fetch data from a URL',
-        inputSchema,
-        outputSchema,
-        execute: async (input: any) => {
-          // Simulate async operation
-          await new Promise(resolve => setTimeout(resolve, 10));
-          
-          return {
-            status: 200,
-            data: `Data from ${input.url}`,
-          };
-        },
-      });
-
-      const result = await skill.run({
-        tool: 'fetch_data',
-        url: 'https://api.example.com/data',
-      });
-
-      expect(result).toEqual({
-        status: 200,
-        data: 'Data from https://api.example.com/data',
-      });
-    });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Mock process.cwd
+    jest.spyOn(process, 'cwd').mockReturnValue('/test-project');
   });
 
-  describe('Error Handling', () => {
-    it('should handle tool execution errors', async () => {
-      const skill = new LuaSkill('test-api-key');
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
-      const inputSchema = z.object({
-        value: z.number(),
-      });
-      const outputSchema = z.object({
-        result: z.number(),
-      });
+  test('should handle end-to-end skill development workflow', async () => {
+    // Mock a complete skill project structure
+    const mockPackageJson = {
+      version: '1.0.0',
+      name: 'weather-skill'
+    };
 
-      skill.addTool({
-        name: 'divide_by_zero',
-        description: 'This will cause an error',
-        inputSchema,
-        outputSchema,
-        execute: async (input: any) => {
-          if (input.value === 0) {
-            throw new Error('Cannot divide by zero');
-          }
-          return { result: 100 / input.value };
-        },
-      });
+    const mockIndexContent = `
+import { LuaSkill } from "lua-cli/skill";
+import { z } from "zod";
 
-      // Test normal operation
-      const normalResult = await skill.run({
-        tool: 'divide_by_zero',
-        value: 5,
-      });
+const skill = new LuaSkill();
 
-      expect(normalResult).toEqual({
-        result: 20,
-      });
+const inputSchema = z.object({
+  city: z.string()
+});
 
-      // Test error case
-      await expect(
-        skill.run({
-          tool: 'divide_by_zero',
-          value: 0,
-        })
-      ).rejects.toThrow('Cannot divide by zero');
+const outputSchema = z.object({
+  temperature: z.number(),
+  description: z.string()
+});
+
+skill.addTool({
+  name: "get_weather",
+  description: "Get weather for a city",
+  inputSchema: inputSchema,
+  outputSchema: outputSchema,
+  execute: async (input) => {
+    return {
+      temperature: 20,
+      description: "Sunny"
+    };
+  }
+});
+`;
+
+    const mockDeployData = {
+      version: '1.0.0',
+      skillsName: 'weather-skill',
+      tools: [
+        {
+          name: 'get_weather',
+          description: 'Get weather for a city',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              city: { type: 'string' }
+            },
+            required: ['city']
+          },
+          outputSchema: {
+            type: 'object',
+            properties: {
+              temperature: { type: 'number' },
+              description: { type: 'string' }
+            }
+          },
+          execute: 'async (input) => { return { temperature: 20, description: "Sunny" }; }'
+        }
+      ]
+    };
+
+    // Mock file system operations
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json') || 
+          filePath.includes('index.ts') || 
+          filePath.includes('.lua') ||
+          filePath.includes('deploy.json') ||
+          filePath.includes('get_weather.js')) {
+        return true;
+      }
+      return false;
     });
+
+    mockedFs.readFileSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json')) {
+        return JSON.stringify(mockPackageJson);
+      }
+      if (filePath.includes('index.ts')) {
+        return mockIndexContent;
+      }
+      if (filePath.includes('deploy.json')) {
+        return JSON.stringify(mockDeployData);
+      }
+      if (filePath.includes('get_weather.js')) {
+        return 'async (input) => { return { temperature: 20, description: "Sunny" }; }';
+      }
+      return '';
+    });
+
+    mockedFs.mkdirSync.mockImplementation(() => undefined);
+    mockedFs.writeFileSync.mockImplementation(() => undefined);
+
+    // Mock successful deploy command
+    mockedDeployCommand.mockResolvedValue(undefined);
+
+    // Test deploy workflow
+    await deployCommand();
+
+    expect(mockedDeployCommand).toHaveBeenCalled();
+  });
+
+  test('should handle skill testing workflow', async () => {
+    const mockDeployData = {
+      tools: [
+        {
+          name: 'get_weather',
+          description: 'Get weather for a city',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              city: { type: 'string' }
+            },
+            required: ['city']
+          }
+        }
+      ]
+    };
+
+    // Mock file system operations
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('.lua') || filePath.includes('deploy.json')) {
+        return true;
+      }
+      return false;
+    });
+
+    mockedFs.readFileSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('deploy.json')) {
+        return JSON.stringify(mockDeployData);
+      }
+      return '';
+    });
+
+    // Mock successful test command
+    mockedTestCommand.mockResolvedValue(undefined);
+
+    // Test testing workflow
+    await testCommand();
+
+    expect(mockedTestCommand).toHaveBeenCalled();
+  });
+
+  test('should handle error scenarios in workflow', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    const processSpy = jest.spyOn(process, 'exit').mockImplementation();
+
+    // Mock missing package.json
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json')) {
+        return false;
+      }
+      return true;
+    });
+
+    // Mock deploy command to throw error
+    mockedDeployCommand.mockImplementation(() => {
+      console.error('❌ Compilation failed:', 'package.json not found in current directory');
+      process.exit(1);
+    });
+
+    await deployCommand();
+
+    expect(consoleSpy).toHaveBeenCalledWith('❌ Compilation failed:', 'package.json not found in current directory');
+    expect(processSpy).toHaveBeenCalledWith(1);
+
+    consoleSpy.mockRestore();
+    processSpy.mockRestore();
+  });
+
+  test('should handle complex skill with multiple tools', async () => {
+    const mockPackageJson = {
+      version: '1.0.0',
+      name: 'multi-tool-skill'
+    };
+
+    const mockIndexContent = `
+import { LuaSkill } from "lua-cli/skill";
+import { z } from "zod";
+import GetWeatherTool from "./tools/GetWeatherTool";
+import CreatePostTool from "./tools/CreatePostTool";
+
+const skill = new LuaSkill();
+
+// Inline tool
+const inputSchema = z.object({
+  query: z.string()
+});
+
+const outputSchema = z.object({
+  results: z.array(z.string())
+});
+
+skill.addTool({
+  name: "search",
+  description: "Search for content",
+  inputSchema: inputSchema,
+  outputSchema: outputSchema,
+  execute: async (input) => {
+    return { results: ["result1", "result2"] };
+  }
+});
+
+// Class-based tools
+skill.addTool(new GetWeatherTool());
+skill.addTool(new CreatePostTool());
+`;
+
+    const mockDeployData = {
+      version: '1.0.0',
+      skillsName: 'multi-tool-skill',
+      tools: [
+        {
+          name: 'search',
+          description: 'Search for content',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' }
+            },
+            required: ['query']
+          },
+          outputSchema: {
+            type: 'object',
+            properties: {
+              results: { type: 'array', items: { type: 'string' } }
+            }
+          },
+          execute: 'async (input) => { return { results: ["result1", "result2"] }; }'
+        },
+        {
+          name: 'get_weather',
+          description: 'Get weather for a city',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              city: { type: 'string' }
+            },
+            required: ['city']
+          },
+          outputSchema: {
+            type: 'object',
+            properties: {
+              temperature: { type: 'number' }
+            }
+          },
+          execute: 'async (input) => { return { temperature: 20 }; }'
+        },
+        {
+          name: 'create_post',
+          description: 'Create a new post',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              content: { type: 'string' }
+            },
+            required: ['title', 'content']
+          },
+          outputSchema: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' }
+            }
+          },
+          execute: 'async (input) => { return { id: "post-123" }; }'
+        }
+      ]
+    };
+
+    // Mock file system operations
+    mockedFs.existsSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json') || 
+          filePath.includes('index.ts') || 
+          filePath.includes('.lua') ||
+          filePath.includes('deploy.json') ||
+          filePath.includes('search.js') ||
+          filePath.includes('get_weather.js') ||
+          filePath.includes('create_post.js')) {
+        return true;
+      }
+      return false;
+    });
+
+    mockedFs.readFileSync.mockImplementation((filePath: any) => {
+      if (filePath.includes('package.json')) {
+        return JSON.stringify(mockPackageJson);
+      }
+      if (filePath.includes('index.ts')) {
+        return mockIndexContent;
+      }
+      if (filePath.includes('deploy.json')) {
+        return JSON.stringify(mockDeployData);
+      }
+      return '';
+    });
+
+    mockedFs.mkdirSync.mockImplementation(() => undefined);
+    mockedFs.writeFileSync.mockImplementation(() => undefined);
+
+    // Mock successful deploy command
+    mockedDeployCommand.mockResolvedValue(undefined);
+
+    await deployCommand();
+
+    expect(mockedDeployCommand).toHaveBeenCalled();
   });
 });

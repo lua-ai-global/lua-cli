@@ -89,3 +89,8 @@ jspm_packages/
 
 # TernJS port file
 .tern-port
+
+# Lua CLI generated files
+template/.lua/
+**/.lua/
+*.lua.skill.toml

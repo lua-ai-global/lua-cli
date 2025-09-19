@@ -30,7 +30,7 @@ export default class AdvancedMathTool implements LuaTool<typeof inputSchema, typ
     this.mathService = new MathService();
   }
   
-  async execute(input) {
+  async execute(input: z.infer<typeof inputSchema>) {
     let result: any;
     
     switch (input.operation) {

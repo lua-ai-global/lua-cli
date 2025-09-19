@@ -28,7 +28,7 @@ export default class CalculatorTool implements LuaTool<typeof inputSchema, typeo
     this.outputSchema = outputSchema;
   }
   
-  async execute(input) {
+  async execute(input: z.infer<typeof inputSchema>) {
     let result: number;
     let expression: string;
     

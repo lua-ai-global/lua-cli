@@ -1,7 +1,7 @@
 {
   "name": "lua-cli",
-  "version": "1.1.4",
-  "description": "Command-line interface for Lua AI platform - manage agents, organizations, and skills",
+  "version": "1.2.0",
+  "description": "Command-line interface for Lua AI platform - develop, test, and deploy LuaSkills with custom tools",
   "readmeFilename": "README.md",
   "main": "dist/index.js",
   "exports": {
@@ -25,7 +25,12 @@
     "automation",
     "agents",
     "api",
-    "typescript"
+    "typescript",
+    "tools",
+    "bundling",
+    "testing",
+    "deployment",
+    "skills"
   ],
   "author": "Stefan Kruger <stefan@heylua.ai>",
   "license": "MIT",

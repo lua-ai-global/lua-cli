@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2024-09-19
+
+### Added
+- **Tool Development Framework**: Complete LuaSkill and LuaTool framework for building custom tools
+- **Dependency Bundling**: Automatic bundling of npm packages using esbuild
+- **Interactive Testing**: Real-time tool testing with `lua test` command
+- **Code Compression**: Gzip compression for efficient storage of bundled code
+- **In-Memory Execution**: VM-based execution without temporary files
+- **Comprehensive Documentation**: Complete guides, API reference, and examples
+- **Template System**: Rich template with 5 example tools and services
+- **TypeScript Support**: Full TypeScript integration with Zod validation
+- **Error Handling**: Robust error handling and validation throughout
+- **Performance Optimization**: Optimized bundling and execution
+
+### New Commands
+- **`lua compile`**: Bundle dependencies and compile LuaSkills
+- **`lua test`**: Interactive testing interface for tools
+- **`lua deploy`**: Deploy compiled skills to the Lua platform
+
+### Technical Improvements
+- **esbuild Integration**: Fast bundling of external dependencies
+- **VM Context**: Secure in-memory execution environment
+- **Schema Validation**: Zod-based input/output validation
+- **Service Architecture**: Reusable service components
+- **Template Examples**: Calculator, Math, Weather, API, and File operation tools
+- **Documentation Suite**: README, Developer Guide, API Reference, and Quick Start
+
+### Security
+- **Sandboxed Execution**: Tools run in isolated VM contexts
+- **Input Validation**: Comprehensive Zod schema validation
+- **Error Isolation**: Proper error handling prevents crashes
+
 ## [1.1.0] - 2024-01-XX
 
 ### Added
